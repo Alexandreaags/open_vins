@@ -12,7 +12,7 @@ cam0:
   distortion_coeffs: [-0.16610165879624592, 0.1156504557423161, -5.9407782773707644e-05, 0.0018508320481282106]
   intrinsics: [1167.87421447215, 1166.9553764645004, 771.763112280329, 589.9626482585169]
   resolution: [1600, 1200]
-  rostopic: /slave1/image_masked
+  rostopic: /slave1/image_raw
   timeshift_cam_imu: 0.0
 
 cam1:
@@ -27,5 +27,5 @@ cam1:
   distortion_coeffs: [-0.17863115239034907, 0.13121795689445712, -6.741741965147593e-05, -0.002580879117584875]
   intrinsics: [1165.9493476066016, 1167.2556820541186, 752.2788466729131, 580.9613365661235]
   resolution: [1600, 1200]
-  rostopic: /slave2/image_masked
+  rostopic: /slave2/image_raw
   timeshift_cam_imu: 0.0
