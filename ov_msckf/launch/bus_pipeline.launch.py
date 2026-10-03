@@ -36,6 +36,26 @@ launch_args = [
         default_value="3.0",
         description="segundos de espera antes de iniciar o bag, para dar tempo dos outros nós subirem",
     ),
+    DeclareLaunchArgument(
+        name="save_total_state",
+        default_value="false",
+        description="salvar a estimativa do estado em filepath_est (usado no benchmark)",
+    ),
+    DeclareLaunchArgument(
+        name="filepath_est",
+        default_value="state_estimate.txt",
+        description="arquivo da estimativa do estado (timestamp q_GtoI p_IinG ...)",
+    ),
+    DeclareLaunchArgument(
+        name="filepath_std",
+        default_value="state_deviation.txt",
+        description="arquivo do desvio padrão do estado",
+    ),
+    DeclareLaunchArgument(
+        name="timing_file",
+        default_value="",
+        description="se não vazio, grava o tempo de cada frame neste arquivo (sobrescreve record_timing_* do yaml)",
+    ),
 ]
 
 
@@ -57,6 +77,15 @@ def launch_setup(context):
     bag_path = LaunchConfiguration("bag_path").perform(context)
     glare_masker_path = LaunchConfiguration("glare_masker_path").perform(context)
     bag_delay = float(LaunchConfiguration("bag_delay").perform(context))
+    save_total_state = LaunchConfiguration("save_total_state").perform(context).lower() == "true"
+    timing_file = LaunchConfiguration("timing_file").perform(context)
+
+    timing_params = []
+    if timing_file:
+        timing_params = [
+            {"record_timing_information": True},
+            {"record_timing_filepath": timing_file},
+        ]
 
     # --- republisher da câmera 1 (compressed -> raw) ---
     republish_cam0 = ExecuteProcess(
@@ -96,10 +125,13 @@ def launch_setup(context):
             {"verbosity": "INFO"},
             {"use_stereo": True},
             {"max_cameras": 2},
-            {"save_total_state": False},
+            {"save_total_state": save_total_state},
+            {"filepath_est": LaunchConfiguration("filepath_est").perform(context)},
+            {"filepath_std": LaunchConfiguration("filepath_std").perform(context)},
             {"config_path": config_path},
             {"use_sim_time": True},
-        ],
+        ]
+        + timing_params,
     )
 
     # --- RViz2 ---
@@ -121,15 +153,15 @@ def launch_setup(context):
 
     # --- bag: atrasado propositalmente, para os outros nós já estarem
     #     com suas subscriptions registradas antes das mensagens começarem
-    bag_play = TimerAction(
-        period=bag_delay,
-        actions=[
-            ExecuteProcess(
-                cmd=["ros2", "bag", "play", bag_path, "--clock"],
-                output="screen",
-            )
-        ],
-    )
+    # bag_play = TimerAction(
+    #     period=bag_delay,
+    #     actions=[
+    #         ExecuteProcess(
+    #             cmd=["ros2", "bag", "play", bag_path, "--clock"],
+    #             output="screen",
+    #         )
+    #     ],
+    # )
 
     return [
         republish_cam0,
@@ -137,7 +169,7 @@ def launch_setup(context):
         # glare_masker,
         openvins_node,
         rviz_node,
-        bag_play,
+        # bag_play,
     ]
 
 
