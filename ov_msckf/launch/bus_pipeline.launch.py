@@ -56,6 +56,11 @@ launch_args = [
         default_value="",
         description="se não vazio, grava o tempo de cada frame neste arquivo (sobrescreve record_timing_* do yaml)",
     ),
+    DeclareLaunchArgument(
+        name="feature_stats_file",
+        default_value="",
+        description="se não vazio, grava as contagens de keypoints/matches de cada frame neste CSV (usado no benchmark)",
+    ),
 ]
 
 
@@ -85,6 +90,14 @@ def launch_setup(context):
         timing_params = [
             {"record_timing_information": True},
             {"record_timing_filepath": timing_file},
+        ]
+
+    feature_stats_file = LaunchConfiguration("feature_stats_file").perform(context)
+    feature_stats_params = []
+    if feature_stats_file:
+        feature_stats_params = [
+            {"record_feature_stats": True},
+            {"record_feature_stats_filepath": feature_stats_file},
         ]
 
     # --- republisher da câmera 1 (compressed -> raw) ---
@@ -131,7 +144,8 @@ def launch_setup(context):
             {"config_path": config_path},
             {"use_sim_time": True},
         ]
-        + timing_params,
+        + timing_params
+        + feature_stats_params,
     )
 
     # --- RViz2 ---

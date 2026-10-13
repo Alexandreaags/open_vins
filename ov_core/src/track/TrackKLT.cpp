@@ -236,6 +236,13 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
     pts_last[cam_id_right] = good_right;
     ids_last[cam_id_left] = good_ids_left;
     ids_last[cam_id_right] = good_ids_right;
+    // Nothing tracked yet: all features were just detected in this image
+    last_feature_stats = FeatureStats();
+    last_feature_stats.candidates_left = last_feature_stats.detected_left = (int)good_left.size();
+    last_feature_stats.candidates_right = (int)good_right.size();
+    for (size_t id : good_ids_left) {
+      last_feature_stats.stereo += (std::find(good_ids_right.begin(), good_ids_right.end(), id) != good_ids_right.end());
+    }
     return;
   }
 
@@ -246,9 +253,13 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
   auto pts_right_old = pts_last[cam_id_right];
   auto ids_left_old = ids_last[cam_id_left];
   auto ids_right_old = ids_last[cam_id_right];
+  size_t last_id_before_detect = currid;
   perform_detection_stereo(img_pyramid_last[cam_id_left], img_pyramid_last[cam_id_right], img_mask_last[cam_id_left],
                            img_mask_last[cam_id_right], cam_id_left, cam_id_right, pts_left_old, pts_right_old, ids_left_old,
                            ids_right_old);
+  // New features get ids above the old counter (the detection can also drop old features that are too close together)
+  int num_detected_left =
+      (int)std::count_if(ids_left_old.begin(), ids_left_old.end(), [&](size_t id) { return id > last_id_before_detect; });
   rT3 = boost::posix_time::microsec_clock::local_time();
 
   // Our return success masks, and predicted new features
@@ -294,6 +305,10 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
     pts_last[cam_id_right].clear();
     ids_last[cam_id_left].clear();
     ids_last[cam_id_right].clear();
+    last_feature_stats = FeatureStats();
+    last_feature_stats.candidates_left = (int)pts_left_old.size();
+    last_feature_stats.candidates_right = (int)pts_right_old.size();
+    last_feature_stats.detected_left = num_detected_left;
     PRINT_ERROR(RED "[KLT-EXTRACTOR]: Failed to get enough points to do RANSAC, resetting.....\n" RESET);
     return;
   }
@@ -301,6 +316,7 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
   // Get our "good tracks"
   std::vector<cv::KeyPoint> good_left, good_right;
   std::vector<size_t> good_ids_left, good_ids_right;
+  int num_stereo = 0;
 
   // Loop through all left points
   for (size_t i = 0; i < pts_left_new.size(); i++) {
@@ -329,6 +345,7 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
       good_right.push_back(pts_right_new.at(index_right));
       good_ids_left.push_back(ids_left_old.at(i));
       good_ids_right.push_back(ids_right_old.at(index_right));
+      num_stereo++;
       // PRINT_DEBUG("adding to stereo - %u , %u\n", ids_left_old.at(i), ids_right_old.at(index_right));
     } else if (mask_ll[i]) {
       good_left.push_back(pts_left_new.at(i));
@@ -378,6 +395,12 @@ void TrackKLT::feed_stereo(const CameraData &message, size_t msg_id_left, size_t
     pts_last[cam_id_right] = good_right;
     ids_last[cam_id_left] = good_ids_left;
     ids_last[cam_id_right] = good_ids_right;
+    last_feature_stats.candidates_left = (int)pts_left_old.size();
+    last_feature_stats.candidates_right = (int)pts_right_old.size();
+    last_feature_stats.detected_left = num_detected_left;
+    last_feature_stats.tracked_left = (int)good_left.size();
+    last_feature_stats.tracked_right = (int)good_right.size();
+    last_feature_stats.stereo = num_stereo;
   }
   rT6 = boost::posix_time::microsec_clock::local_time();
 

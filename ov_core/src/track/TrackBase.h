@@ -145,6 +145,29 @@ public:
     return ids_last;
   }
 
+  /// Feature counts of the last frame fed to the tracker (only filled by the stereo KLT tracker; used for benchmarking)
+  struct FeatureStats {
+    /// Features of the previous left image we tried to track into this one: tracks plus the new detections that topped
+    /// them up (on the first frame / after a reset: features detected in this image)
+    int candidates_left = 0;
+    /// Same for the right image
+    int candidates_right = 0;
+    /// New features detected in the left image to top up the tracks
+    int detected_left = 0;
+    /// Left features tracked into this frame (KLT and RANSAC inliers)
+    int tracked_left = 0;
+    /// Right features tracked into this frame (KLT and RANSAC inliers)
+    int tracked_right = 0;
+    /// Left features of this frame that also have a right observation (stereo pairs)
+    int stereo = 0;
+  };
+
+  /// Getter method for the feature counts of the last frame
+  FeatureStats get_last_feature_stats() {
+    std::lock_guard<std::mutex> lckv(mtx_last_vars);
+    return last_feature_stats;
+  }
+
   /// Getter method for number of active features
   int get_num_features() { return num_features; }
 
@@ -187,6 +210,9 @@ protected:
 
   /// Set of IDs of each current feature in the database
   std::unordered_map<size_t, std::vector<size_t>> ids_last;
+
+  /// Feature counts of the last frame (see get_last_feature_stats())
+  FeatureStats last_feature_stats;
 
   /// Master ID for this tracker (atomic to allow for multi-threading)
   std::atomic<size_t> currid;

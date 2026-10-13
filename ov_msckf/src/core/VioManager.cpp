@@ -121,6 +121,27 @@ VioManager::VioManager(VioManagerOptions &params_) : thread_init_running(false),
     of_statistics << "re-tri & marg,total" << std::endl;
   }
 
+  // If we are recording the feature tracking counts, then open that file too
+  if (params.record_feature_stats) {
+    if (boost::filesystem::exists(params.record_feature_stats_filepath)) {
+      boost::filesystem::remove(params.record_feature_stats_filepath);
+      PRINT_INFO(YELLOW "[STATS]: found old file found, deleted...\n" RESET);
+    }
+    boost::filesystem::path p(params.record_feature_stats_filepath);
+    boost::filesystem::create_directories(p.parent_path());
+    of_feature_stats.open(params.record_feature_stats_filepath, std::ofstream::out | std::ofstream::app);
+    // Columns shared with the other SLAMs of the benchmark first (one row per stereo frame), then OpenVINS-only ones:
+    // kp_left/kp_right: features of the previous image tracked into this one (tracks + new detections topping them up)
+    // stereo_matches: left features of this frame that also have a right observation
+    // tracked/tracked_right: features tracked into this frame (KLT and RANSAC inliers)
+    // tracking_ok: the filter is initialized and at least one left feature was tracked
+    // keyframe: always empty (no keyframes in the MSCKF)
+    // new_kp: new FAST features detected in the left image to top up the tracks
+    // vio_initialized: the filter was initialized when this frame arrived
+    of_feature_stats << "timestamp,kp_left,kp_right,stereo_matches,tracked,tracking_ok,keyframe,tracked_right,new_kp,vio_initialized"
+                     << std::endl;
+  }
+
   //===================================================================================
   //===================================================================================
   //===================================================================================
@@ -287,6 +308,15 @@ void VioManager::track_image_and_update(const ov_core::CameraData &message_const
     trackARUCO->feed_new_camera(message);
   }
   rT2 = boost::posix_time::microsec_clock::local_time();
+
+  // Save the feature tracking counts of this frame (written here as the rest of this function can return early)
+  if (params.record_feature_stats && of_feature_stats.is_open()) {
+    TrackBase::FeatureStats fs = trackFEATS->get_last_feature_stats();
+    of_feature_stats << std::fixed << std::setprecision(9) << message.timestamp << "," << fs.candidates_left << ","
+                     << fs.candidates_right << "," << fs.stereo << "," << fs.tracked_left << ","
+                     << (int)(is_initialized_vio && fs.tracked_left > 0) << ",," << fs.tracked_right << "," << fs.detected_left << ","
+                     << (int)is_initialized_vio << std::endl;
+  }
 
   // Check if we should do zero-velocity, if so update the state with it
   // Note that in the case that we only use in the beginning initialization phase
